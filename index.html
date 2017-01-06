@@ -1,0 +1,38 @@
+<html>
+    <head>
+        <title>vis-a-week</title>
+        <link rel="stylesheet" href="style.css">
+        <style>
+            section {
+                max-width: 500px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>vis-a-week</h1>
+
+        <section>
+            <h2>week 1: bar charts</h2>
+            <p>This week I'm starting by looking at the change in rent stabilized units in NYC in relation to Google's <a href="http://www.citylab.com/design/2016/08/google-maps-areas-of-interest/493670/">areas of interest</a>. Has an area marked as an "area of interest" by the most widely used mapping provider experienced more of a loss in rent stabilized units than outside of these areas?</p>
+            <p>I started by tracing Google's "areas of interest" in NYC with <a href="http://qgis.org/en/site/">QGIS</a>. Once I had polygons for each area of interest I made a quarter-mile buffer around the areas to represent a very short walking distance. I then segmented the change in rent stabilized units data&mdash;if the change in units was within the buffer it went into one segment, outside the buffer into another segment. Finally, I aggregated the counts of these units by segment and neighborhood tabulation area (NTA), a rough proxy for neighborhood boundaries in NYC that can be used with census data.</p>
+            <p><a href="week1-barcharts/e/">The results</a> do seem to imply that the areas that have been marked as areas of interest previously (2007 to 2014) lost more rent stabilized units than the rest of a neighborhood. It seems likely that that places that attract people and that Google recognizes as attracting people are also the kinds of places where landlords and other speculators would try to remove rent stabilized units and charge market rates.</p>
+            <p>Data sources:
+                <ul>
+                    <li>Google maps</li>
+                    <li><a href="https://docker4data.carto.com/viz/766a0f32-1ea1-11e5-b267-0e49835281d6/public_map">Change in rent stabilized units (2007 - 2014)</a></li>
+                    <li><a href="http://www1.nyc.gov/site/planning/data-maps/open-data/dwn-nynta.page">Neighborhood Tabulation Areas</a></li>
+                </ul>
+            </p>
+            <p>Here are the results, from least to most developed:
+                <ul>
+                    <li><a href="week1-barcharts/a/">first draft</a></li>
+                    <li><a href="week1-barcharts/b/">by borough, inside areas of interest buffer</a></li>
+                    <li><a href="week1-barcharts/c/">by borough, outside areas of interest buffer </a></li>
+                    <li><a href="week1-barcharts/d/">by borough, inside and outside areas of interest buffer</a></li>
+                    <li><a href="week1-barcharts/e/">final, stacked</a></li>
+                </ul>
+            </p>
+        </section>
+
+    </body>
+</html>

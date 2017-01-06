@@ -1,0 +1,19 @@
+body {
+    padding: 25px;
+}
+
+div {
+    display: inline-block;
+}
+
+h1, h2, h3 {
+    font-family: Helvetica, sans-serif;
+}
+
+a {
+    color: #0884ad;
+}
+
+a:visited {
+    color: #043748;
+}

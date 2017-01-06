@@ -1,0 +1,94 @@
+<html>
+    <head>
+        <script src="http://d3js.org/d3.v4.min.js"></script>
+        <style>
+            .bar {
+                fill: url(#barGradient);
+            }
+
+            .zero-line {
+                stroke: black;
+            }
+
+            .x-axis .tick text {
+                text-anchor: end;
+            }
+        </style>
+    </head>
+    <body>
+        <script>
+            var margin = {top: 20, right: 50, bottom: 250, left: 50},
+                width = 2200 - margin.left - margin.right,
+                height = 800 - margin.top - margin.bottom;
+            var x = d3.scaleBand()
+                .range([0, width])
+                .padding(0.3);
+            var y = d3.scaleLinear()
+                .range([height, 0]);
+
+            var svg = d3.select("body").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            var defs = svg.append('defs');
+            var gradient = defs.append('linearGradient')
+                .attr('id', 'barGradient')
+                .attr('x1', '0%')
+                .attr('y1', '0%')
+                .attr('x2', '0%')
+                .attr('y2', '100%');
+            gradient.append('stop')
+                .attr('offset', '0%')
+                .attr('stop-color', '#FFDFA8')
+                .attr('stop-opacity', '1');
+            gradient.append('stop')
+                .attr('offset', '100%')
+                .attr('stop-color', '#E87443')
+                .attr('stop-opacity', '1');
+
+            d3.csv("../stabilized_by_nta.csv", function(error, data) {
+                data.forEach(function(d) {
+                    d.diff_in = +d.diff_in;
+                    d.diff_out = +d.diff_out;
+                });
+
+                x.domain(data.map(function(d) { return d.NTAName; }));
+                y.domain(d3.extent(data, function(d) { return d.diff_in; }));
+
+                svg.selectAll(".bar")
+                    .data(data)
+                    .enter().append("rect")
+                        .attr("class", "bar")
+                        .attr("x", function(d) { return x(d.NTAName); })
+                        .attr("width", x.bandwidth())
+                        .attr("y", function(d) { return y(Math.max(0, d.diff_in)); })
+                        .attr("height", function(d) { return Math.abs(y(d.diff_in) - y(0)); });
+
+                // add the x Axis
+                svg.append("g").classed('x-axis', true)
+                    .attr("transform", "translate(0," + height + ")")
+                    .call(d3.axisBottom(x))
+                    .selectAll('text')
+                        .attr('dx', '-.8em')
+                        .attr('dy', '-.2em')
+                        .attr('transform', 'rotate(-60)');
+
+                // add the y Axis
+                svg.append("g")
+                    .call(d3.axisLeft(y));
+
+                var line = d3.line()
+                    .x(function (d, i) {
+                        return x(d.NTAName);
+                    })
+                    .y(function (d, i) { return y(0) });
+                svg.append('path')
+                    .datum(data)
+                    .attr('class', 'zero-line')
+                    .attr('d', line);
+            });
+        </script>
+    </body>
+</html>
