@@ -1,0 +1,121 @@
+<html>
+    <head>
+        <script src="https://d3js.org/d3.v4.min.js"></script>
+        <link rel="stylesheet" href="../../style.css">
+        <style>
+            .x-axis .tick text {
+                text-anchor: end;
+            }
+
+            .line {
+                fill: none;
+                stroke: steelblue;
+                stroke-width: 1.5px;
+            }
+
+            .dot {
+                fill-opacity: 0;
+            }
+
+            .dot.over {
+                fill: red;
+                fill-opacity: .5;
+            }
+
+            .tooltip {
+                background: white;
+                border: 1px solid steelblue;
+                padding: 5px;
+                position: absolute;
+            }
+        </style>
+    </head>
+    <body>
+        <a href="../..">&larr; vis-a-week</a>
+        <h1>311 Service Requests by month</h1>
+        <p><a href="../..">Methodology and data sources</a></p>
+        <script>
+            var margin = {top: 20, right: 50, bottom: 50, left: 50},
+                width = 1200 - margin.left - margin.right,
+                height = 600 - margin.top - margin.bottom;
+            var x = d3.scaleTime()
+                .range([0, width]);
+            var y = d3.scaleLinear()
+                .range([height, 0]);
+
+            var line = d3.line()
+                .x(function(d) { return x(d.month); })
+                .y(function(d) { return y(d.count); });
+
+            var svg = d3.select("body").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            d3.csv("../311_requests_summary.csv", type, function(error, data) {
+                data.forEach(function(d) {
+                    d.diff_in = +d.diff_in;
+                    d.diff_out = +d.diff_out;
+                });
+
+                x.domain(d3.extent(data, function(d) { return d.month; }));
+                y.domain([
+                    0,
+                    d3.max(data, function(d) { return d.count; })
+                ]);
+
+                // add the x Axis
+                svg.append("g").classed('x-axis', true)
+                    .attr("transform", "translate(0," + height + ")")
+                    .call(d3.axisBottom(x))
+                    .selectAll('text')
+                        .attr('dx', '-.8em')
+                        .attr('dy', '-.2em')
+                        .attr('transform', 'rotate(-60)');
+
+                // add the y Axis
+                svg.append("g")
+                    .call(d3.axisLeft(y));
+
+                svg.append("path")
+                    .datum(data)
+                    .attr("class", "line")
+                    .attr("d", line);
+
+                var tooltip = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
+                svg.selectAll('dot')
+                    .data(data)
+                    .enter().append('circle')
+                        .attr('class', 'dot')
+                        .attr('r', 10)
+                        .attr('cx', function (d) { return x(d.month); })
+                        .attr('cy', function (d) { return y(d.count); })
+                        .on('mouseover', function(d) {
+                            d3.select(this).attr('class', 'dot over');
+                            tooltip.transition()
+                                .duration(200)
+                                .style("opacity", .9);
+                            tooltip.html(d3.timeFormat('%B %Y')(d.month) + "<br/>"  + d.count)
+                                .style("left", (d3.event.pageX + 20) + "px")
+                                .style("top", (d3.event.pageY - 28) + "px");
+                        })
+                        .on('mouseout', function(d) {
+                            d3.select(this).attr('class', 'dot');
+                            tooltip.transition()
+                                .duration(500)
+                                .style("opacity", 0);
+                        });
+            });
+
+            function type(d) {
+                d.month = d3.timeParse('%m/%d/%Y')(d.month.split(' ')[0]);
+                d.count = +d.count;
+                return d;
+            }
+        </script>
+    </body>
+</html>
