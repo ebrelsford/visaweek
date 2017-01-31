@@ -1,0 +1,358 @@
+<html>
+    <head>
+        <script src="https://d3js.org/d3.v4.min.js"></script>
+        <link rel="stylesheet" href="../../style.css">
+        <style>
+            .node {
+                fill: lightcoral;
+                stroke-width: 0;
+            }
+
+            .node.person {
+                fill: blue;
+            }
+
+            .node.donald {
+                fill: orange;
+            }
+
+            .buffer {
+                stroke-width: 5px;
+                stroke: #333;
+                stroke-opacity: 0;
+            }
+
+            .link {
+                fill: none;
+                stroke: #bbb;
+            }
+
+            .link.active {
+                stroke-width: 3px;
+            }
+
+            .node-tooltip {
+                font-family: sans-serif;
+                font-size: 14px;
+                stroke: black;
+                stroke-width: 0.5px;
+            }
+        </style>
+    </head>
+    <body>
+        <a href="../..">&larr; vis-a-week</a>
+        <h1>Trump orgs and people</h1>
+        <p>Green links = ownership, gold links = investment</p>
+        <p>Blue circles = person, pink circles = organization</p>
+        <p><a href="../..">Methodology and data sources</a></p>
+        <script>
+            var margin = {top: 20, right: 50, bottom: 50, left: 50},
+                width = 1200 - margin.left - margin.right,
+                height = 600 - margin.top - margin.bottom;
+
+            var svg = d3.select("body").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            var zoomBehavior = d3.zoom().on('zoom', function () {
+                var transform = d3.event.transform;
+                svg.attr("transform", "translate(" + transform.x + ',' + transform.y + ") " + "scale(" + transform.k + ")");
+            });
+            d3.select('body > svg').call(zoomBehavior);
+
+            var simulation = d3.forceSimulation()
+                .force("link", d3.forceLink().distance(50).strength(.3))
+                .force("charge", d3.forceManyBody().strength(-10).distanceMax(600))
+                .force("collide", d3.forceCollide().radius(5))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+
+            function getOrganizationNodes(orgOrgData, personOrgData) {
+                var orgNames = orgOrgData.map(function (d) { return d['Organization A']; })
+                    .concat(orgOrgData.map(function (d) { return d['Organization B']; }))
+                    .concat(personOrgData.map(function (d) { return d['Organization']; }));
+                return d3.set(orgNames).values().map(function (d) {
+                    return {
+                        'id': d,
+                        'type': 'organization'
+                    }
+                });
+            }
+
+            function getPersonNodes(personOrgData, personPersonData) {
+                var personNames = personOrgData.map(function (d) { return d['Person']; })
+                    .concat(personPersonData.map(function (d) { return d['Person A']; }))
+                    .concat(personPersonData.map(function (d) { return d['Person B']; }));
+                return d3.set(personNames).values().map(function (d) {
+                    return {
+                        'id': d,
+                        'type': 'person'
+                    }
+                });
+            }
+
+            function findNodePath(sourceNode, targetNodeId, links) {
+                var parents = {};
+                var seen = {};
+                var toView = [sourceNode];
+                var found = false;
+
+                // Do a breadth first search until we find our target
+                while (toView.length && !found) {
+                    var currentNode = toView.pop();
+                    seen[currentNode.id] = true;
+
+                    var connectedLinks = links.filter(function (l) {
+                        return (l.source.id === currentNode.id || l.target.id === currentNode.id);
+                    });
+
+                    for (var i = 0; i < connectedLinks.data().length; i++) {
+                        var l = connectedLinks.data()[i],
+                            otherNode = l.source;
+                        if (l.source.id === currentNode.id) {
+                            otherNode = l.target;
+                        }
+                        if (seen[otherNode.id]) {
+                            continue;
+                        }
+
+                        parents[otherNode.id] = currentNode.id;
+                        if (otherNode.id === targetNodeId) {
+                            found = true;
+                            break;
+                        }
+
+                        toView.push(otherNode);
+                    }
+                }
+
+                // Find path
+                var currentNode = targetNodeId;
+                var path = [];
+                while (currentNode && currentNode !== sourceNode.id) {
+                    path.push(currentNode);
+                    currentNode = parents[currentNode];
+                }
+                path.reverse();
+                return path;
+            }
+
+            d3.queue()
+                .defer(d3.csv, '../TrumpWorld_org_org.csv')
+                .defer(d3.csv, '../TrumpWorld_person_org.csv')
+                .defer(d3.csv, '../TrumpWorld_person_person.csv')
+                .await(function (error, orgOrgData, personOrgData, personPersonData) {
+                    if (error) throw error;
+
+                    var orgNodes = getOrganizationNodes(orgOrgData, personOrgData);
+                    var personNodes = getPersonNodes(personOrgData, personPersonData);
+
+                    var nodes = orgNodes.concat(personNodes),
+                        nodeById = d3.map(nodes, function(d) { return d.id; }),
+                        links = [];
+
+                    orgOrgData.forEach(function(row) {
+                        row.source = nodeById.get(row['Organization A']);
+                        row.target = nodeById.get(row['Organization B']);
+                        links.push(row);
+                    });
+
+                    personOrgData.forEach(function(row) {
+                        row.source = nodeById.get(row['Organization']);
+                        row.target = nodeById.get(row['Person']);
+                        links.push(row);
+                    });
+
+                    personPersonData.forEach(function(row) {
+                        row.source = nodeById.get(row['Person A']);
+                        row.target = nodeById.get(row['Person B']);
+                        links.push(row);
+                    });
+
+                    var link = svg.selectAll(".link-group")
+                        .data(links)
+                        .enter().append('g');
+
+                    var coloredLink = link.append("line")
+                        .attr("class", "link")
+                        .style('stroke', function (d) {
+                            switch (d.Connection) {
+                                case 'Ownership':
+                                    return 'green';
+                                case 'Investor':
+                                    return 'gold';
+                                default:
+                                    return '#bbb';
+                            }
+                        });
+
+                    var bufferedLink = link.append("line")
+                        .on('mouseenter', function (d) {
+                            var line = d3.select(this)
+                                .classed('active', true);
+
+                            var nodes = d3.selectAll('.node').filter(function (n) {
+                                return (n.id === d.target.id || n.id === d.source.id);
+                            });
+
+                            d.tooltip = svg.append('text')
+                                .classed('link-tooltip', true)
+                                .text(d.Connection)
+                                .attr('x', function () {
+                                    var xs = nodes.data().map(function (d) { return d.x; });
+                                    return d3.sum(xs) / xs.length;
+                                })
+                                .attr('y', function () {
+                                    var ys = nodes.data().map(function (d) { return d.y; });
+                                    return d3.sum(ys) / ys.length;
+                                });
+
+                            nodes
+                                .transition().duration(100)
+                                .attr('r', 10)
+                                .each(function (d) {
+                                    var tooltip = svg.append('text')
+                                        .classed('node-tooltip', true)
+                                        .text(d.id)
+                                        .attr('x', d.x + 20)
+                                        .attr('y', d.y);
+                                    d.tooltip = tooltip;
+                                });
+                        })
+                        .on('mouseout', function (d) {
+                            d3.select(this)
+                                .classed('active', false);
+                            d.tooltip.remove();
+                            d3.selectAll('.node').filter(function (n) {
+                                return (n.id === d.target.id || n.id === d.source.id);
+                            })
+                                .each(function (d) {
+                                    d.tooltip.remove();
+                                })
+                                .transition().duration(100)
+                                .attr('r', 5);
+                        })
+                        .attr("class", "buffer");
+
+
+                    var clicked = false;
+
+                    function deselectNodes() {
+                        clicked = false;
+                        svg.selectAll('.node.selected')
+                            .classed('selected', false)
+                            .transition().duration(100)
+                            .attr('r', 5)
+                            .each(function (d) {
+                                d.tooltip.remove();
+                            });
+                    }
+
+                    function selectNodes(d) {
+                        svg.selectAll('.node').filter(function (n) {
+                            return n.id === d.id || d.path.indexOf(n.id) >= 0;
+                        })
+                            .classed('selected', true)
+                            .transition().duration(100)
+                            .attr('r', 30)
+                            .each(function (d) {
+                                var tooltip = svg.append('text')
+                                    .classed('node-tooltip', true)
+                                    .text(d.id)
+                                    .attr('x', d.x + 20)
+                                    .attr('y', d.y);
+                                d.tooltip = tooltip;
+                            });
+                    }
+
+                    var node = svg.selectAll(".node")
+                        .data(nodes.filter(function(d) { return d.id; }))
+                        .enter().append("circle")
+                        .attr("class", function (d) {
+                            var classes = ['node'];
+                            classes.push(d.type);
+                            if (d.id === 'DONALD J. TRUMP') {
+                                classes.push('donald');
+                            }
+                            return classes.join(' ');
+                        })
+                        .attr("r", 5)
+                        .on('click', function (d) {
+                            clicked = true;
+                        })
+                        .on('mouseenter', function (d) {
+                            deselectNodes();
+                            if (!d.path) {
+                                d.path = findNodePath(d, 'DONALD J. TRUMP', link);
+                            }
+
+                            var connectedLinks = coloredLink.filter(function (l) {
+                                return (l.source.id === d.id || l.target.id === d.id);
+                            })
+                                .classed('active', true);
+                            selectNodes(d);
+                        })
+                        .on('mouseout', function (d) {
+                            var connectedLinks = svg.selectAll('.link').filter(function (l) {
+                                return (l.source.id === d.id || l.target.id === d.id);
+                            })
+                                .classed('active', false);
+                            if (!clicked) {
+                                deselectNodes();
+                            }
+                        })
+                        .call(d3.drag()
+                            .on("start", dragstarted)
+                            .on("drag", dragged)
+                            .on("end", dragended));
+
+                    simulation
+                        .nodes(nodes)
+                        .on("tick", ticked);
+
+                    simulation.force("link")
+                        .links(links);
+
+                    d3.select('svg')
+                        .transition()
+                        .duration(250)
+                        .call(zoomBehavior.transform, d3.zoomIdentity
+                            .translate(width / 4, height / 4)
+                            .scale(0.5));
+
+                    function ticked() {
+                        coloredLink
+                            .attr("x1", function(d) { return d.source.x; })
+                            .attr("y1", function(d) { return d.source.y; })
+                            .attr("x2", function(d) { return d.target.x; })
+                            .attr("y2", function(d) { return d.target.y; });
+                        bufferedLink
+                            .attr("x1", function(d) { return d.source.x; })
+                            .attr("y1", function(d) { return d.source.y; })
+                            .attr("x2", function(d) { return d.target.x; })
+                            .attr("y2", function(d) { return d.target.y; });
+                        node.attr("transform", positionNode);
+                    }
+                });
+
+            function positionNode(d) {
+                return "translate(" + d.x + "," + d.y + ")";
+            }
+
+            function dragstarted(d) {
+                if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x, d.fy = d.y;
+            }
+
+            function dragged(d) {
+                d.fx = d3.event.x, d.fy = d3.event.y;
+            }
+
+            function dragended(d) {
+                if (!d3.event.active) simulation.alphaTarget(0);
+                d.fx = null, d.fy = null;
+            }
+        </script>
+    </body>
+</html>
