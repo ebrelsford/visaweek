@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+        <link rel="stylesheet" href="../../style.css">
+        <style>
+            html, body {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                width: 100%;
+            }
+
+            .info {
+                background: rgba(255, 255, 255, 0.8);
+                padding: 25px;
+                position: absolute;
+                left: 25px;
+                top: 25px;
+            }
+
+            .projection-picker {
+                position: absolute;
+                bottom: 25px;
+                left: 25px;
+            }
+
+            .projection-picker a {
+                display: block;
+            }
+
+            .projection-picker a.active {
+                font-weight: bold;
+            }
+
+            .aoi {
+                fill: #0078ff;
+            }
+
+            .borough {
+                fill: #bbb;
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="100%" height="100%"></svg>
+        <div class="info">
+            <a href="../..">&larr; vis-a-week</a>
+            <h1>Mapping Google's Areas of Interest in NYC</h1>
+            <p><a href="../..">Methodology and data sources</a></p>
+        </div>
+
+        <div class="projection-picker"></div>
+
+        <script src="//d3js.org/d3.v4.min.js"></script>
+        <script src="//d3js.org/d3-geo-projection.v1.min.js"></script>
+        <script src="//d3js.org/topojson.v2.min.js"></script>
+        <script>
+            var svg = d3.select("svg"),
+                width = +svg.attr("width"),
+                height = +svg.attr("height");
+
+            var g = svg.append('g');
+
+            var projection = d3.geoTransverseMercator()
+                .rotate([74, -40.166666])
+                .precision(0.1);
+
+            var path = d3.geoPath()
+                .projection(projection);
+
+            var mercator = d3.geoMercator();
+
+            var boroughs = g.append('g'),
+                aoi = g.append('g');
+
+            var zoom = d3.zoom()
+                .on('zoom', zoomed)
+                .scaleExtent([0, 5]);
+
+            svg.call(zoom);
+
+            function zoomed() {
+                g.attr("transform", d3.event.transform);
+            }
+
+            var boroughsGeoJson,
+                aoiGeoJson;
+
+            d3.queue()
+                .defer(d3.json, 'data/boroughs-simplified.topojson')
+                .defer(d3.json, 'data/aoi-simplified.topojson')
+                .await(function (error, boroughsJson, aoiJson) {
+                    if (error) throw error;
+
+                    boroughsGeoJson = topojson.feature(boroughsJson, boroughsJson.objects['-']);
+                    aoiGeoJson = topojson.feature(aoiJson, aoiJson.objects['-']);
+                    projection.fitExtent([[0, 0], [svg.node().clientWidth, svg.node().clientHeight]], boroughsGeoJson);
+
+                    boroughs.selectAll('path')
+                        .data(boroughsGeoJson.features)
+                        .enter()
+                            .append('path')
+                            .classed('borough', true)
+                            .attr('d', path);
+
+                    aoi.selectAll('path')
+                        .data(aoiGeoJson.features)
+                        .enter()
+                            .append('path')
+                            .classed('aoi', true)
+                            .attr('d', path);
+                });
+
+            function updateProjection(p) {
+                p.fitExtent([[0, 0], [svg.node().clientWidth, svg.node().clientHeight]], boroughsGeoJson);
+                projectionPath = d3.geoPath().projection(p);
+
+                boroughs.selectAll('path').transition()
+                    .duration(1000)
+                    .attr('d', projectionPath);
+                aoi.selectAll('path').transition()
+                    .duration(1000)
+                    .attr('d', projectionPath);
+            }
+
+            var projections = [
+                {
+                    name: 'state plane long island',
+                    projection: d3.geoTransverseMercator()
+                        .rotate([74, -40.166666])
+                        .precision(0.1)
+                },
+                {
+                    name: 'mercator',
+                    projection: d3.geoMercator()
+                },
+                {
+                    name: 'albers',
+                    projection: d3.geoAlbers()
+                },
+                {
+                    name: 'orthographic',
+                    projection: d3.geoOrthographic()
+                },
+                {
+                    name: 'stereographic',
+                    projection: d3.geoStereographic()
+                },
+                {
+                    name: 'equirectangular',
+                    projection: d3.geoEquirectangular()
+                },
+                {
+                    name: 'conic equal area',
+                    projection: d3.geoConicEqualArea()
+                },
+                {
+                    name: 'conic equidistant',
+                    projection: d3.geoConicEquidistant()
+                }
+            ];
+            var projectionPicker = d3.select('.projection-picker');
+            projectionPicker.selectAll('a')
+                .data(projections)
+                .enter()
+                    .append('a')
+                    .attr('href', '#')
+                    .text(function (d) {
+                        return d.name;
+                    })
+                    .on('click', function (d) {
+                        updateProjection(d.projection);
+                        d3.selectAll('.projection-picker a')
+                            .classed('active', function (d2) {
+                                return d.name === d2.name;
+                            });
+                    });
+        </script>
+    </body>
+</html>
